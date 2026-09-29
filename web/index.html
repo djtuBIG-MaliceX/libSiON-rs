@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libSiON-rs playground</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<main>
+  <h1>libSiON-rs playground</h1>
+  <textarea id="mml" spellcheck="false">%0,0 t140 v15 l8 o4
+cdef gagf edc&lt;b a2. r gabc &gt;d2 &lt;c2 r
+o3 l4 c2. e g a2. g e
+t120 l8 o4 cdef gagf edc&lt;b c1;</textarea>
+  <div class="controls">
+    <button id="play" disabled>Play</button>
+    <button id="stop" disabled>Stop</button>
+    <label><input type="checkbox" id="loop" checked> Loop</label>
+    <label>Volume
+      <input type="range" id="volume" min="0" max="1" step="0.01" value="0.7">
+    </label>
+    <span id="status" data-state="idle">idle</span>
+  </div>
+  <canvas id="scope" width="640" height="160"></canvas>
+  <div id="meter"><div id="meter-fill"></div></div>
+  <footer>build: <code>pwsh web/build.ps1</code> then serve with <code>python -m http.server 8000</code> in <code>web/</code></footer>
+</main>
+</body>
+</html>

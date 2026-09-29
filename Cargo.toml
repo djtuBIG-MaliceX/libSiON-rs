@@ -1,0 +1,38 @@
+[package]
+name = "libSiON-rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "libsion"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "sion-play"
+path = "src/bin/sion-play.rs"
+required-features = ["native-cli"]
+
+[[bin]]
+name = "sion-mq"
+path = "src/bin/sion-mq.rs"
+required-features = ["macroquad"]
+
+[features]
+default = ["native-cli"]
+native-cli = ["dep:cpal", "dep:hound"]
+wasm = ["dep:wasm-bindgen"]
+macroquad = ["dep:macroquad"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+
+[dependencies]
+cpal = { version = "0.18.2", optional = true }
+hound = { version = "3.5.1", optional = true }
+macroquad = { version = "0.4.16", optional = true }
+regex = "1.13.1"
+wasm-bindgen = { version = "0.2", optional = true }
