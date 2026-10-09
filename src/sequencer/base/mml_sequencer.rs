@@ -310,7 +310,12 @@ impl MMLSequencerBase {
     /// C++ `calculate_sample_delay(int, double, double)`. NOTE: the C++
     /// mixes `int beats` with the `double p_quant` through implicit
     /// conversions; the int↔double round-trips (truncation toward zero)
-    /// are reproduced on the same expressions.
+    /// are reproduced on the same expressions. GUARD vs C++: a fractional
+    /// `p_quant` (<1, never produced by SiMML itself) collapses the requant
+    /// step `(beats+p_quant-1)/p_quant*p_quant` *below* the playhead, so the
+    /// port clamps negative results to zero — a note can never start before
+    /// "now"; the C++ instead walked its channel buffer OOB from a negative
+    /// `buffer_index` (silent UB; hard panic after the Rust port).
     pub fn calculate_sample_delay(
         &self,
         p_sample_offset: i32,
@@ -320,7 +325,9 @@ impl MMLSequencerBase {
         let bpm = self.bpm.borrow();
 
         if p_quant == 0.0 {
-            return p_sample_offset as f64 + p_beat_16th_offset * bpm.get_sample_per_beat_16th();
+            let plain =
+                p_sample_offset as f64 + p_beat_16th_offset * bpm.get_sample_per_beat_16th();
+            return plain.max(0.0);
         }
 
         let mut beats = (p_sample_offset as f64 * bpm.get_beat_16th_per_sample()
@@ -331,7 +338,7 @@ impl MMLSequencerBase {
             beats = (((beats as f64 + p_quant - 1.0) / p_quant) as i32 as f64 * p_quant) as i32;
         }
 
-        (beats as f64 - self.global_beat_16th) * bpm.get_sample_per_beat_16th()
+        ((beats as f64 - self.global_beat_16th) * bpm.get_sample_per_beat_16th()).max(0.0)
     }
 
     /// C++ `get_current_tick_count()`. NOTE: C++ evaluates

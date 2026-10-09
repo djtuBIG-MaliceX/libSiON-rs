@@ -2086,6 +2086,17 @@ impl SiONDriver {
         Some(track)
     }
 
+    /// Trigger a one-shot note. Channels are always allocated dynamically
+    /// (any inactive slot, grown/robbed via `create_controllable_track` —
+    /// the id never pins a channel). CAUTION, C++ argument-swap quirk kept
+    /// verbatim: inside `find_or_create_track` the effective key-on delay is
+    /// `calculate_sample_delay(0, p_quant, p_track_id as f64)` — so
+    /// `p_track_id` doubles as the quantize grid (in 16th-beats!) and
+    /// `p_quant` as the beat offset. For an immediate, unshifted trigger
+    /// pass `p_delay = p_quant = 0.0` **and** `p_track_id = 0`; any
+    /// non-zero id re-quantizes the start *forward* off the playhead (the
+    /// negative-side rounding of fractional grids is clamped, see
+    /// `calculate_sample_delay`).
     pub fn note_on(
         &mut self,
         p_note: i32,
@@ -2218,6 +2229,8 @@ impl SiONDriver {
         result
     }
 
+    /// Start a compiled sequence; `p_quant` follows the same rules as
+    /// [`SiONDriver::note_on`] (0 or integer 16th-beats).
     pub fn sequence_on(
         &mut self,
         p_data: &Rc<RefCell<SiONData>>,
@@ -2483,5 +2496,46 @@ mod tests {
         );
 
         driver.set_sampler_wave(50, Some(&sample), true, 0, 1, 1);
+    }
+
+    #[test]
+    fn fractional_quant_trigger_never_schedules_before_playhead() {
+        // Regression: a `p_quant` in (0,1) once quantized the grid *below*
+        // `global_beat_16th` in calculate_sample_delay, so SiopmStream::write
+        // walked a negative buffer index (benign OOB in C++, index panic
+        // after porting — reproduced live from an audio app firing menu SFX
+        // over a playing song). Real SiMML only quantizes on integer 16ths,
+        // but API callers must not be able to abort the host.
+        sion::initialize();
+        let mut driver = SiONDriver::new(2048, 2, 44100, 0);
+        driver.set_auto_stop(true);
+
+        // Compile before play: `compile()` stops the stream, so all data
+        // must be ready first (mirrors AudioEngine: bank precompiled once).
+        let song = driver.compile(TUNE.to_string());
+        let sfx = driver.compile("%0,0 v10 o5 l8 c;".to_string());
+        driver.play(&song, false);
+
+        let mut scratch = vec![0.0f32; 2048 * 2];
+        let mut peak = 0.0f32;
+
+        // A concrete voice so the quantized key-on actually reaches a chip
+        // channel (the crash path); mirrors AudioEngine's programmatic blip.
+        let mut voice = SiONVoice::default_voice();
+        voice.set_envelope(96, 40, 0, 127, 96, 96);
+
+        for i in 0..32 {
+            driver.update();
+            if i % 4 == 1 {
+                let _ = driver.note_on(72, Some(&voice), 4.0, 0.0, 0.16, -1, true);
+            } else if i % 4 == 3 {
+                let _ = driver.sequence_on(&sfx, None, 8.0, 0.0, 0.25, -1, true);
+            }
+            driver.render_chunk(&mut scratch);
+            peak = peak.max(scratch.iter().fold(0.0f32, |a, v| a.max(v.abs())));
+        }
+
+        assert!(peak > 0.001, "silent pump: peak {peak}");
+        assert!(driver.is_streaming(), "song should still be streaming");
     }
 }
