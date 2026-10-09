@@ -57,7 +57,8 @@ use crate::sequencer::data::SiMMLData;
 use crate::sequencer::ref_table as mml_ref_table;
 use crate::sequencer::sequencer::SiMMLSequencer;
 use crate::sequencer::track::{
-    DRIVER_BACKGROUND, DRIVER_NOTE, DRIVER_SEQUENCE, TRACK_ID_FILTER, TrackRc, USER_CONTROLLED,
+    DRIVER_BACKGROUND, DRIVER_NOTE, DRIVER_SEQUENCE, MML_TRACK, TRACK_ID_FILTER,
+    TRACK_TYPE_FILTER, TrackRc, USER_CONTROLLED,
 };
 use crate::sequencer::track::SiMMLTrack;
 use crate::sion_enums as enums;
@@ -663,6 +664,22 @@ impl SiONDriver {
 
     pub fn get_track_count(&self) -> i32 {
         self.sequencer.borrow().get_tracks().len() as i32
+    }
+
+    /// Live playback tracks built from the compiled song data (internal id
+    /// type `MML_TRACK`). Excludes driver-triggered voices (`note_on` →
+    /// `DRIVER_NOTE`, `sequence_on` → `DRIVER_SEQUENCE`) by construction, so
+    /// a host can apply an independent music-level gain without touching
+    /// sound effects. Empty until `play`'s first processed block creates
+    /// them; track set/numbers may change across `play` (loop restarts), so
+    /// re-enumerate per playback generation.
+    pub fn music_tracks(&self) -> Vec<TrackRc> {
+        self.sequencer
+            .borrow()
+            .get_tracks()
+            .into_iter()
+            .filter(|t| (t.borrow().get_internal_track_id() & TRACK_TYPE_FILTER) == MML_TRACK)
+            .collect()
     }
 
     pub fn get_max_track_count(&self) -> i32 {

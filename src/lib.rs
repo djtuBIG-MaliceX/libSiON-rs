@@ -33,4 +33,4 @@ pub use core::voice::SiONVoice;
 pub use events::sion_event::SionEvent;
 pub use events::sion_track_event::SiONTrackEvent;
 pub use sample_data::SampleData;
-pub use sequencer::track::SiMMLTrack;
+pub use sequencer::track::{SiMMLTrack, TrackRc};
