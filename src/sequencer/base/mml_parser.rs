@@ -14,7 +14,10 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::sync::OnceLock;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::time::Instant;
 
 use regex::{Captures, Regex};
@@ -146,9 +149,17 @@ const KEY_SIGNATURE_TABLE: [[i32; 7]; 15] = [
 ];
 
 /// `Time::get_singleton()->get_ticks_msec()` compat shape (see file header).
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn ticks_msec() -> i64 {
     static START: OnceLock<Instant> = OnceLock::new();
     START.get_or_init(Instant::now).elapsed().as_micros() as i64 / 1000
+}
+
+/// Browser build: std clocks trap on bare wasm32-unknown-unknown, so the
+/// tick clock piggybacks on miniquad's `env.now` import (ms, monotonic).
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub fn ticks_msec() -> i64 {
+    crate::random::env_now_millis() as i64
 }
 
 /// `RegEx::search_all(subject, offset)` from `compat/sion_regex.cpp`:

@@ -1,7 +1,32 @@
 //! PCG32 random generator + Godot-compatible `RandomNumberGenerator` facade.
 //! Faithful port of `src/compat/sion_random.h` (pcg-c XSH-RR 64/32 parity).
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Monotonic millisecond tick for seeding. `std::time` is a runtime trap on
+/// bare `wasm32-unknown-unknown`, so browser builds borrow miniquad's
+/// `env.now` import (performance.now, supplied by gl.js); hosts without a
+/// miniquad-style `env` module must not hit this path or should pass an
+/// explicit `set_seed`.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub(crate) fn env_now_millis() -> f64 {
+    #[link(wasm_import_module = "env")]
+    unsafe extern "C" {
+        fn now() -> f64;
+    }
+    unsafe { now() }
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[allow(dead_code)] // wasm-only helper kept compile-parity for both targets
+pub(crate) fn env_now_millis() -> f64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as f64)
+        .unwrap_or(0.0)
+}
+
 
 pub const MULTIPLIER: u64 = 6364136223846793005;
 pub const DEFAULT_INCREMENT: u64 = 1442695040888963407;
@@ -76,10 +101,13 @@ impl RandomNumberGenerator {
     }
 
     pub fn randomize(&mut self) {
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let ticks = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
             .unwrap_or(0);
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        let ticks = (env_now_millis() * 1_000_000.0) as u64;
         self.set_seed(ticks);
     }
 

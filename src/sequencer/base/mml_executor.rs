@@ -151,6 +151,15 @@ impl MMLExecutor {
 
         self.repeat_counters.clear();
         self.current_tick_count = 0;
+        // GUARD vs C++: a new single note abandons the previous chain, so its
+        // leftover PROCESS residue must go too. `_default_on_process` only
+        // resets the residue when it is exactly 0, and the empty-executor
+        // NO_OP drain leaves it negative (it compounds every idle block);
+        // replaying a note with a stale negative residue ran `on_process`
+        // with a negative length and walked the channel buffer OOB (silent
+        // UB in C++, hard panic after the Rust port).
+        self.residue_sample_count = 0;
+        self.decimal_fraction_sample_count = 0;
     }
 
     pub fn bend_single_note(&mut self, p_to_note: i32, p_tick_length: i32) {
